@@ -1,12 +1,24 @@
 import numpy as np
 import serial
 import time
+from lerobot.common.robot_devices.motors.configs import FeetechMotorsBusConfig
+from lerobot.common.robot_devices.motors.feetech import FeetechMotorsBus
 
 # Link lengths in mm
 a1 = 80   # base to shoulder
 a2 = 115  # shoulder to arm
 a3 = 135  # arm to wrist
 a4 = 63   # wrist to claw (end effector)
+
+# HARD LIMITS for each joint (in radians)
+# Adjust these as needed for your robot's safe range
+JOINT_LIMITS = [
+    (-2.6, 2.6),   # base_joint (e.g., -149 to +149 deg)
+    (-1.5, 1.5),   # shoulder_joint (e.g., -86 to +86 deg)
+    (-2.0, 2.0),   # upper_arm_joint (e.g., -114 to +114 deg)
+    (-2.0, 2.0),   # forearm_joint (e.g., -114 to +114 deg)
+    (-2.6, 2.6),   # wrist_joint (e.g., -149 to +149 deg)
+]
 
 # Helper: Rotation matrix from roll, pitch, yaw (ZYX convention)
 def rpy_to_matrix(roll, pitch, yaw):
@@ -133,44 +145,130 @@ def forward_kinematics(theta1, theta2, theta3, theta4, theta5):
     return x, y, z, roll, pitch, yaw
 
 def set_joint_angles(joint_angles, port='/dev/ttyACM0'):
-    """
-    Set the joint angles on Feetech STS3215 servos via serial port.
-    joint_angles: list of 5 angles in radians (base, shoulder, upper_arm, forearm, wrist)
-    port: serial port (default: /dev/ttyACM0)
-    This is a template; you may need to fine-tune the protocol and mapping for your hardware.
-    """
-    # Example: Map radians to servo units (0-1023 for 0-300 degrees)
+    from lerobot.common.robot_devices.motors.configs import FeetechMotorsBusConfig
+    from lerobot.common.robot_devices.motors.feetech import FeetechMotorsBus
+
+    # Clamp joint angles to hard limits
+    clamped_angles = [
+        max(JOINT_LIMITS[i][0], min(JOINT_LIMITS[i][1], joint_angles[i]))
+        for i in range(5)
+    ]
+
+    # Map radians to servo units (adjust as needed)
     def rad_to_servo(angle_rad):
+        # Map -180 to +180 deg (-pi to +pi rad) to -2047 to +2047 servo units
         angle_deg = angle_rad * 180.0 / np.pi
-        # Clamp to servo range (0-300 degrees)
-        angle_deg = max(0, min(300, angle_deg + 150))  # shift -150~+150 to 0~300
-        servo_val = int(angle_deg / 300.0 * 1023)
+        angle_deg = max(-180, min(180, angle_deg))  # Clamp to -180~+180 deg
+        servo_val = int(angle_deg / 180.0 * 2047)
         return servo_val
 
-    servo_ids = [1, 2, 3, 4, 5]  # Update with your servo IDs
-    servo_vals = [rad_to_servo(a) for a in joint_angles]
+    servo_ids = [1, 2, 3, 4, 5]  # Update as needed
+    servo_vals = [rad_to_servo(a) for a in clamped_angles]
 
-    # Open serial port
-    with serial.Serial(port, baudrate=115200, timeout=1) as ser:
-        for sid, sval in zip(servo_ids, servo_vals):
-            # Example command: [0xFF, 0xFF, ID, ...data...]
-            # You must replace this with the correct protocol for STS3215
-            # This is a placeholder for Feetech serial protocol
-            cmd = bytearray([0xFF, 0xFF, sid, (sval & 0xFF), ((sval >> 8) & 0xFF)])
-            ser.write(cmd)
-            time.sleep(0.05)  # Small delay between commands
-    print("Sent joint angles to servos:", servo_vals)
+    # Setup MotorBus
+    config = FeetechMotorsBusConfig(port=port, motors={f"motor{i+1}": (servo_ids[i], "sts3215") for i in range(5)})
+    bus = FeetechMotorsBus(config=config)
+    bus.connect()
+
+    for i, sid in enumerate(servo_ids):
+        bus.write_with_motor_ids(["sts3215"], sid, "Goal_Position", servo_vals[i])
+    bus.disconnect()
+    print("Sent joint angles to servos (clamped):", servo_vals)
+
+def set_servo(servo_id, value, port='/dev/ttyACM0'):
+    """
+    Set the specified servo to the given value (servo units, -2047 to +2047).
+    Example: set_servo(1, 1024) will set servo 1 to about +90 degrees.
+    """
+    from lerobot.common.robot_devices.motors.configs import FeetechMotorsBusConfig
+    from lerobot.common.robot_devices.motors.feetech import FeetechMotorsBus
+
+    # Clamp value to servo range
+    value = int(max(-2047, min(2047, value)))
+
+    config = FeetechMotorsBusConfig(port=port, motors={f"motor{servo_id}": (servo_id, "sts3215")})
+    bus = FeetechMotorsBus(config=config)
+    bus.connect()
+    bus.write_with_motor_ids(["sts3215"], servo_id, "Goal_Position", value)
+    bus.disconnect()
+    print(f"Set servo {servo_id} to value: {value}")
+
+def read_servo_position(port='/dev/ttyACM0', servo_id=None):
+    """
+    Reads the current position of the specified servo.
+    Returns the position in raw units (typically -2048 to +2048), or None if not found or error.
+    """
+    from lerobot.common.robot_devices.motors.configs import FeetechMotorsBusConfig
+    from lerobot.common.robot_devices.motors.feetech import FeetechMotorsBus
+
+    if servo_id is not None:
+        motors = {f"motor{servo_id}": (servo_id, "sts3215")}
+        config = FeetechMotorsBusConfig(port=port, motors=motors)
+        bus = FeetechMotorsBus(config=config)
+        try:
+            bus.connect()
+            position = bus.read("Present_Position", motor_names=f"motor{servo_id}")
+            bus.disconnect()
+            print(f"Servo {servo_id} position (raw units):", position[0])
+            return position[0]
+        except Exception as e:
+            print(f"Error: Servo {servo_id} not found. Reason: {e}")
+            try:
+                bus.disconnect()
+            except Exception:
+                pass
+            return None
+
+def set_servo_zero_position(servo_id, port='/dev/ttyACM0'):
+    """
+    Sets the current position of the specified servo as the new zero (centered at 2048) in the servo's memory, without moving the servo.
+    """
+    from lerobot.common.robot_devices.motors.configs import FeetechMotorsBusConfig
+    from lerobot.common.robot_devices.motors.feetech import FeetechMotorsBus
+
+    motors = {f"motor{servo_id}": (servo_id, "sts3215")}
+    config = FeetechMotorsBusConfig(port=port, motors=motors)
+    bus = FeetechMotorsBus(config=config)
+    try:
+        bus.connect()
+        # Unlock the servo to allow writing to Offset
+        bus.write("Lock", 0, motor_names=f"motor{servo_id}")
+        # Read the current position
+        current_pos = bus.read("Present_Position", motor_names=f"motor{servo_id}")[0]
+        # Calculate the required offset so that current_pos becomes 2048
+        offset = 2048 - int(current_pos)
+        # Write the offset
+        bus.write("Offset", offset, motor_names=f"motor{servo_id}")
+        bus.disconnect()
+        print(f"Set current position of servo {servo_id} as new zero (centered at 2048, offset={offset})")
+    except Exception as e:
+        print(f"Error: Could not set servo {servo_id} zero offset. Reason: {e}")
+        try:
+            bus.disconnect()
+        except Exception:
+            pass
 
 # Example usage:
 if __name__ == "__main__":
     # Target pose (x, y, z, roll, pitch, yaw)
-    x, y, z = 258, 0, -98
+    x, y, z = 200, 0, -98
     roll, pitch, yaw = 0, 0, 0
     joint_angles = inverse_kinematics(x, y, z, roll, pitch, yaw)
 
     # Forward kinematics test
     x_fk, y_fk, z_fk, roll_fk, pitch_fk, yaw_fk = forward_kinematics(*joint_angles)
-    print("FK pose:", x_fk, y_fk, z_fk, roll_fk, pitch_fk, yaw_fk)
+    # print("FK pose:", x_fk, y_fk, z_fk, roll_fk, pitch_fk, yaw_fk)
 
     # Send joint angles to hardware
-    set_joint_angles(joint_angles, port='/dev/ttyACM0')
+    # set_joint_angles(joint_angles, port='/dev/ttyACM0')
+
+    for i in range(6):
+        print(read_servo_position(servo_id=i+1))
+        # time.sleep(1)
+
+    set_servo_zero_position(2)  # Set servo 2 to zero position
+    
+    # for i in range(10):
+    #     set_servo(2, 100*i)
+    #     read_servo_position(servo_id=2)
+    #     time.sleep(1)

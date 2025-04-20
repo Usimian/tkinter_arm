@@ -1,6 +1,7 @@
 ---
 description: project rules
 globs: 
+alwaysApply: false
 ---
 
 # Your rule content
@@ -9,3 +10,4 @@ This is a python project
 The Operating System is Ubuntu 24.04
 This is running on an AMD64 machine
 The application framework is tkinter
+The program is a 5-DOF robotic arm with a gripper.
