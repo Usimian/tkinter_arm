@@ -1,0 +1,178 @@
+<?xml version="1.0"?>
+<robot name="so100">
+  <!-- Base link -->
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <mesh filename="meshes/Base.STL" scale="1 1 1"/>
+      </geometry>
+      <origin xyz="0 0.045 0" rpy="0 0 0"/>
+      <material name="gray">
+        <color rgba="0.6 0.6 0.6 1"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.08" radius="0.04"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </collision>
+  </link>
+
+  <!-- Shoulder link -->
+  <link name="shoulder_link">
+    <visual>
+      <geometry>
+        <mesh filename="meshes/Shoulder_Rotation_Pitch.STL" scale="1 1 1"/>
+      </geometry>
+      <origin xyz="0 0 -.0464" rpy="1.57 0 1.57"/>
+      <material name="blue">
+        <color rgba="0.2 0.2 0.8 1"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.115" radius="0.025"/>
+      </geometry>
+      <origin xyz="0 0 0.0575" rpy="0 0 0"/>
+    </collision>
+  </link>
+
+  <!-- Upper arm link -->
+  <link name="upper_arm_link">
+    <visual>
+      <geometry>
+        <mesh filename="meshes/Upper_Arm.STL" scale="1 1 1"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="1.57 0 -1.57"/>
+      <material name="green">
+        <color rgba="0.2 0.8 0.2 1"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.135" radius="0.02"/>
+      </geometry>
+      <origin xyz="0 0 0.0675" rpy="0 0 0"/>
+    </collision>
+  </link>
+
+  <!-- Forearm link -->
+  <link name="forearm_link">
+    <visual>
+      <geometry>
+        <mesh filename="meshes/Lower_Arm.STL" scale="1 1 1"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="1.57 0 1.57"/>
+      <material name="yellow">
+        <color rgba="0.8 0.8 0.2 1"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.063" radius="0.018"/>
+      </geometry>
+      <origin xyz="0 0 0.0315" rpy="0 0 0"/>
+    </collision>
+  </link>
+
+  <!-- Wrist link -->
+  <link name="wrist_link">
+    <visual>
+      <geometry>
+        <mesh filename="meshes/Wrist_Pitch_Roll.STL" scale="1 1 1"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 3.14 0"/>
+      <material name="red">
+        <color rgba="0.8 0.8 0.2 1"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.04" radius="0.015"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </collision>
+  </link>
+
+  <!-- Fixed jaw link -->
+  <link name="fixed_jaw_link">
+    <visual>
+      <geometry>
+        <mesh filename="meshes/Fixed_Jaw.STL" scale="1 1 1"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <material name="purple">
+        <color rgba="0.6 0.2 0.8 1"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.04" radius="0.012"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </collision>5
+  </link>
+
+  <!-- Moving jaw link -->
+  <link name="moving_jaw_link">
+    <visual>
+      <geometry>
+        <mesh filename="meshes/Moving_Jaw.STL" scale="1 1 1"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 3.14 0"/>
+      <material name="purple">
+        <color rgba="0.6 0.2 0.8 1"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.04" radius="0.012"/>
+      </geometry>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </collision>
+  </link>
+
+  <joint name="base_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="shoulder_link"/>
+    <origin xyz="0 0 0.0645" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-3.1416" upper="3.1416" effort="10" velocity="2"/>
+  </joint>
+  <joint name="shoulder_joint" type="revolute">
+    <parent link="shoulder_link"/>
+    <child link="upper_arm_link"/>
+    <origin xyz="0 0 0.062" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-3.1416" upper="3.1416" effort="10" velocity="2"/>
+  </joint>
+  <joint name="upper_arm_joint" type="revolute">
+    <parent link="upper_arm_link"/>
+    <child link="forearm_link"/>
+    <origin xyz="0 0.111 0.028" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-3.1416" upper="3.1416" effort="10" velocity="2"/>
+  </joint>
+  <joint name="forearm_joint" type="revolute">
+    <parent link="forearm_link"/>
+    <child link="wrist_link"/>
+    <origin xyz="0 -0.11 0.004" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-3.1416" upper="3.1416" effort="10" velocity="2"/>
+  </joint>
+  <joint name="wrist_joint" type="revolute">
+    <parent link="wrist_link"/>
+    <child link="fixed_jaw_link"/>
+    <origin xyz="0 -0.061 0" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-3.1416" upper="3.1416" effort="10" velocity="2"/>
+  </joint>
+  <joint name="jaw_joint" type="revolute">
+    <parent link="fixed_jaw_link"/>
+    <child link="moving_jaw_link"/>
+    <origin xyz="-0.02 -0.0245 0" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-3.1416" upper="3.1416" effort="10" velocity="2"/>
+  </joint>
+</robot> 
