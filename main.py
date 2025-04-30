@@ -1,6 +1,7 @@
 import numpy as np
 import serial
 import time
+import sys
 from lerobot.common.robot_devices.motors.configs import FeetechMotorsBusConfig
 from lerobot.common.robot_devices.motors.feetech import FeetechMotorsBus, convert_degrees_to_steps
 import threading
@@ -191,61 +192,81 @@ def launch_servo_monitor_gui():
     class ServoMonitorApp(tk.Tk):
         def __init__(self):
             super().__init__()
-            self.title("Servo Position Monitor")
-            self.geometry("400x300")
+            self.title("Dual Arm Servo Position Monitor")
+            self.geometry("800x300")
             self.resizable(False, False)
-            self.labels = []
-            self.check_vars = []
-            self.checkboxes = []
-            self.servo_present = [False] * 6  # Will be set by scan_servos
-            for i in range(6):
-                frame = ttk.Frame(self)
-                frame.pack(pady=5, anchor="w", padx=10)
-                var = tk.BooleanVar(value=True)
-                chk = ttk.Checkbutton(frame, variable=var)
-                chk.pack(side="left")
-                label = ttk.Label(frame, text=f"Servo {i+1}: ...", font=("Arial", 14))
-                label.pack(side="left", padx=10)
-                self.labels.append(label)
-                self.check_vars.append(var)
-                self.checkboxes.append(chk)
+            
+            # Create frames for each arm
+            left_frame = ttk.LabelFrame(self, text="Arm 1 (/dev/ttyACM0)")
+            left_frame.pack(side="left", padx=10, pady=5, fill="both", expand=True)
+            
+            right_frame = ttk.LabelFrame(self, text="Arm 2 (/dev/ttyACM1)")
+            right_frame.pack(side="left", padx=10, pady=5, fill="both", expand=True)
+            
+            # Initialize lists for both arms
+            self.labels = [[], []]  # [arm1_labels, arm2_labels]
+            self.check_vars = [[], []]  # [arm1_vars, arm2_vars]
+            self.checkboxes = [[], []]  # [arm1_checkboxes, arm2_checkboxes]
+            self.servo_present = [[False] * 6, [False] * 6]  # Status for both arms
+            
+            # Create widgets for both arms
+            for arm_idx, frame in enumerate([left_frame, right_frame]):
+                for i in range(6):
+                    row_frame = ttk.Frame(frame)
+                    row_frame.pack(pady=5, anchor="w", padx=10)
+                    var = tk.BooleanVar(value=True)
+                    chk = ttk.Checkbutton(row_frame, variable=var)
+                    chk.pack(side="left")
+                    label = ttk.Label(row_frame, text=f"Servo {i+1}: ...", font=("Arial", 12))
+                    label.pack(side="left", padx=10)
+                    self.labels[arm_idx].append(label)
+                    self.check_vars[arm_idx].append(var)
+                    self.checkboxes[arm_idx].append(chk)
+            
             self.scan_servos()
             self.update_servo_widgets()
             self.poll_servo_positions()
 
         def scan_servos(self):
-            """Scan for servos 1-6 and set self.servo_present[i] = True if present, else False."""
-            for i in range(6):
-                pos = read_servo_position(i+1)
-                self.servo_present[i] = pos is not None
+            """Scan for servos 1-6 on both arms."""
+            ports = ['/dev/ttyACM0', '/dev/ttyACM1']
+            for arm_idx, port in enumerate(ports):
+                for i in range(6):
+                    pos = read_servo_position(i+1, port=port)
+                    self.servo_present[arm_idx][i] = pos is not None
 
         def update_servo_widgets(self):
-            for i in range(6):
-                if not self.servo_present[i]:
-                    self.labels[i].config(foreground="grey")
-                    self.checkboxes[i].config(state="disabled")
-                else:
-                    self.labels[i].config(foreground="black")
-                    self.checkboxes[i].config(state="normal")
+            """Update widget states for both arms."""
+            for arm_idx in range(2):
+                for i in range(6):
+                    if not self.servo_present[arm_idx][i]:
+                        self.labels[arm_idx][i].config(foreground="grey")
+                        self.checkboxes[arm_idx][i].config(state="disabled")
+                    else:
+                        self.labels[arm_idx][i].config(foreground="black")
+                        self.checkboxes[arm_idx][i].config(state="normal")
 
         def poll_servo_positions(self):
-            for i in range(6):
-                if not self.servo_present[i]:
-                    self.labels[i].config(text=f"Servo {i+1}: (not present)")
-                    continue
-                if self.check_vars[i].get():
-                    try:
-                        pos = read_servo_position(i+1)
-                        if pos is not None:
-                            # Map 0 -> -1.57, 2048 -> 0, 4095 -> 1.57
-                            radians = (pos - 2048) * (1.57 / 2047)
-                            self.labels[i].config(text=f"Servo {i+1}: {pos} ({radians:.3f} rad)")
-                        else:
-                            self.labels[i].config(text=f"Servo {i+1}: (no data)")
-                    except Exception as e:
-                        self.labels[i].config(text=f"Servo {i+1}: Error: {e}")
-                else:
-                    self.labels[i].config(text=f"Servo {i+1}: (skipped)")
+            """Poll positions from both arms."""
+            ports = ['/dev/ttyACM0', '/dev/ttyACM1']
+            for arm_idx, port in enumerate(ports):
+                for i in range(6):
+                    if not self.servo_present[arm_idx][i]:
+                        self.labels[arm_idx][i].config(text=f"Servo {i+1}: (not present)")
+                        continue
+                    if self.check_vars[arm_idx][i].get():
+                        try:
+                            pos = read_servo_position(i+1, port=port)
+                            if pos is not None:
+                                # Map 0 -> -1.57, 2048 -> 0, 4095 -> 1.57
+                                radians = (pos - 2048) * (1.57 / 2047)
+                                self.labels[arm_idx][i].config(text=f"Servo {i+1}: {pos} ({radians:.3f} rad)")
+                            else:
+                                self.labels[arm_idx][i].config(text=f"Servo {i+1}: (no data)")
+                        except Exception as e:
+                            self.labels[arm_idx][i].config(text=f"Servo {i+1}: Error: {e}")
+                    else:
+                        self.labels[arm_idx][i].config(text=f"Servo {i+1}: (skipped)")
             self.after(500, self.poll_servo_positions)  # 0.5 seconds
 
     app = ServoMonitorApp()
@@ -275,5 +296,4 @@ if __name__ == "__main__":
     # Send joint angles to hardware
     # set_joint_angles(joint_angles, port='/dev/ttyACM0')
  
-    import sys
     launch_servo_monitor_gui()
