@@ -1,7 +1,4 @@
 import numpy as np
-import serial
-import time
-import sys
 from lerobot.common.robot_devices.motors.configs import FeetechMotorsBusConfig
 from lerobot.common.robot_devices.motors.feetech import FeetechMotorsBus, convert_degrees_to_steps
 import threading
@@ -217,7 +214,7 @@ def launch_servo_monitor_gui():
                     var = tk.BooleanVar(value=True)
                     chk = ttk.Checkbutton(row_frame, variable=var)
                     chk.pack(side="left")
-                    label = ttk.Label(row_frame, text=f"Servo {i+1}: ...", font=("Arial", 12))
+                    label = ttk.Label(row_frame, text=f"Servo {i+1}: ...", font=("Arial", 14))
                     label.pack(side="left", padx=10)
                     self.labels[arm_idx].append(label)
                     self.check_vars[arm_idx].append(var)
@@ -260,14 +257,14 @@ def launch_servo_monitor_gui():
                             if pos is not None:
                                 # Map 0 -> -1.57, 2048 -> 0, 4095 -> 1.57
                                 radians = (pos - 2048) * (1.57 / 2047)
-                                self.labels[arm_idx][i].config(text=f"Servo {i+1}: {pos} ({radians:.3f} rad)")
+                                self.labels[arm_idx][i].config(text=f"Servo {i+1}: {pos:5d} ({radians:7.3f} rad)")
                             else:
                                 self.labels[arm_idx][i].config(text=f"Servo {i+1}: (no data)")
                         except Exception as e:
                             self.labels[arm_idx][i].config(text=f"Servo {i+1}: Error: {e}")
                     else:
                         self.labels[arm_idx][i].config(text=f"Servo {i+1}: (skipped)")
-            self.after(500, self.poll_servo_positions)  # 0.5 seconds
+            self.after(200, self.poll_servo_positions)  # 0.2 seconds
 
     app = ServoMonitorApp()
     app.mainloop()
@@ -295,5 +292,4 @@ if __name__ == "__main__":
 
     # Send joint angles to hardware
     # set_joint_angles(joint_angles, port='/dev/ttyACM0')
- 
     launch_servo_monitor_gui()
